@@ -4,6 +4,26 @@ import { z } from "zod";
 // `id` is optional in authored YAML — the importer mints and writes it back so
 // future imports upsert instead of duplicating (docs/DESIGN.md §7.2).
 
+// Per-node authored questions (mcq / conversational), carried in export/import
+// round-trips. See docs/DESIGN.md §12. `id` is the stable key used to upsert.
+export type QuestionSeed = {
+  id?: string;
+  type: "mcq" | "conversational";
+  prompt: string;
+  options?: string[];
+  answerIndex?: number;
+  answerGuide?: string;
+};
+
+export const questionSeedSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(["mcq", "conversational"]),
+  prompt: z.string().min(1),
+  options: z.array(z.string()).optional(),
+  answerIndex: z.number().optional(),
+  answerGuide: z.string().optional(),
+});
+
 export type NodeSeed = {
   id?: string;
   slug?: string;
@@ -11,6 +31,7 @@ export type NodeSeed = {
   description?: string;
   weight?: number;
   tierRubric?: Record<string, string>;
+  questions?: QuestionSeed[];
   children?: NodeSeed[];
 };
 
@@ -22,6 +43,7 @@ export const nodeSeedSchema: z.ZodType<NodeSeed> = z.lazy(() =>
     description: z.string().optional(),
     weight: z.number().optional(),
     tierRubric: z.record(z.string(), z.string()).optional(),
+    questions: z.array(questionSeedSchema).optional(),
     children: z.array(nodeSeedSchema).optional(),
   }),
 );

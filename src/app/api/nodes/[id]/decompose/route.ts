@@ -15,6 +15,7 @@ export const POST = withAuth(async (req, { params }, user) => {
   const result = await decomposeNode(ai, {
     taxonomyTitle: ctx.taxonomyTitle,
     path: ctx.path,
+    ancestors: ctx.ancestors,
     nodeTitle: ctx.node.title,
     nodeDescription: ctx.node.description,
     existingChildren: ctx.existingChildren,

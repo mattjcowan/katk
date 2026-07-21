@@ -2,6 +2,7 @@ import {
   deleteTaxonomy,
   renameTaxonomy,
   setTaxonomyArchived,
+  setTaxonomyDescription,
 } from "@/lib/queries";
 import { withAuth } from "@/lib/route";
 
@@ -10,6 +11,8 @@ export const PATCH = withAuth(async (req, { params }) => {
   const body = (await req.json().catch(() => null)) ?? {};
   if (typeof body.title === "string" && body.title.trim())
     renameTaxonomy(id, body.title.trim());
+  if (typeof body.description === "string")
+    setTaxonomyDescription(id, body.description);
   if ("archived" in body) setTaxonomyArchived(id, !!body.archived);
   return Response.json({ ok: true });
 });

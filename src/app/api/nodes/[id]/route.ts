@@ -1,11 +1,15 @@
 import {
   deleteNodeCascade,
   moveNode,
+  placeNode,
   renameNode,
+  reorderNode,
   setNodeArchived,
   updateNodeDescription,
 } from "@/lib/queries";
 import { withAuth } from "@/lib/route";
+
+const DIRS = ["up", "down", "top", "bottom"] as const;
 
 export const PATCH = withAuth(async (req, { params }) => {
   const { id } = await params;
@@ -17,6 +21,18 @@ export const PATCH = withAuth(async (req, { params }) => {
   if ("archived" in body) setNodeArchived(id, !!body.archived);
   if ("parentId" in body) {
     const r = moveNode(id, body.parentId ?? null);
+    if (!r.ok) return Response.json({ error: r.error }, { status: 400 });
+  }
+  if (DIRS.includes(body.reorder)) {
+    const r = reorderNode(id, body.reorder);
+    if (!r.ok) return Response.json({ error: r.error }, { status: 400 });
+  }
+  if (typeof body.placeBefore === "string") {
+    const r = placeNode(id, body.placeBefore, "before");
+    if (!r.ok) return Response.json({ error: r.error }, { status: 400 });
+  }
+  if (typeof body.placeAfter === "string") {
+    const r = placeNode(id, body.placeAfter, "after");
     if (!r.ok) return Response.json({ error: r.error }, { status: 400 });
   }
   return Response.json({ ok: true });

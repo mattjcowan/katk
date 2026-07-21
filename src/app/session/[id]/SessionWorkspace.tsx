@@ -165,6 +165,7 @@ export default function SessionWorkspace({
   const [decomposing, setDecomposing] = useState(false);
   const [decErr, setDecErr] = useState<string | null>(null);
   const [steerText, setSteerText] = useState("");
+  const [decCount, setDecCount] = useState(6);
   const [newChild, setNewChild] = useState("");
   const [newChildDesc, setNewChildDesc] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -197,6 +198,19 @@ export default function SessionWorkspace({
   const assessedEff = selected ? effectiveTier(selected, "assessedTier") : null;
   const selectedGap =
     selfEff != null && assessedEff != null ? selfEff - assessedEff : null;
+
+  const siblings = selected
+    ? ((selected.parentId
+        ? findNode(roots, selected.parentId)?.children
+        : roots) ?? [])
+    : [];
+  const activeSiblings = siblings.filter((n) => !n.archived);
+  const sibIndex = selected
+    ? activeSiblings.findIndex((n) => n.id === selected.id)
+    : -1;
+  const canReorder = activeSiblings.length > 1 && sibIndex >= 0;
+  const isFirstSib = sibIndex <= 0;
+  const isLastSib = sibIndex === activeSiblings.length - 1;
 
   useEffect(() => {
     setProposals(null);
@@ -392,7 +406,7 @@ export default function SessionWorkspace({
       const res = await fetch(`/api/nodes/${selected.id}/decompose`, {
         method: "POST",
         headers: H,
-        body: JSON.stringify({ steer: steerText || undefined }),
+        body: JSON.stringify({ steer: steerText || undefined, count: decCount }),
       });
       const j = await res.json();
       if (!res.ok) setDecErr(j.error ?? "failed");
@@ -561,6 +575,42 @@ export default function SessionWorkspace({
     const movedId = selected.id;
     await refresh();
     setFocusId(newParentId);
+    setSelectedId(movedId);
+    expandTo(movedId);
+  }
+
+  async function reorder(dir: "up" | "down" | "top" | "bottom") {
+    if (!selected) return;
+    const movedId = selected.id;
+    await fetch(`/api/nodes/${movedId}`, {
+      method: "PATCH",
+      headers: H,
+      body: JSON.stringify({ reorder: dir }),
+    });
+    await refresh();
+    setSelectedId(movedId);
+  }
+
+  async function placeRelative(targetId: string, position: "before" | "after") {
+    if (!selected || !targetId) return;
+    const movedId = selected.id;
+    const res = await fetch(`/api/nodes/${movedId}`, {
+      method: "PATCH",
+      headers: H,
+      body: JSON.stringify(
+        position === "before"
+          ? { placeBefore: targetId }
+          : { placeAfter: targetId },
+      ),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "move failed");
+      return;
+    }
+    const target = findNode(roots, targetId);
+    await refresh();
+    setFocusId(target?.parentId ?? null);
     setSelectedId(movedId);
     expandTo(movedId);
   }
@@ -1387,12 +1437,35 @@ export default function SessionWorkspace({
                 >
                   {decomposing ? "Thinking…" : "✦ Break this down (AI)"}
                 </button>
-                <input
-                  value={steerText}
-                  onChange={(e) => setSteerText(e.target.value)}
-                  placeholder="steer the suggestions (optional)…"
-                  className="w-full rounded border border-slate-300 bg-transparent px-2 py-1 text-xs dark:border-slate-600"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    value={steerText}
+                    onChange={(e) => setSteerText(e.target.value)}
+                    placeholder="steer the suggestions (optional)…"
+                    className="min-w-0 flex-1 rounded border border-slate-300 bg-transparent px-2 py-1 text-xs dark:border-slate-600"
+                  />
+                  <label
+                    className="flex shrink-0 items-center gap-1 text-slate-500"
+                    title="How many sub-areas to propose"
+                  >
+                    #
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={decCount}
+                      onChange={(e) =>
+                        setDecCount(
+                          Math.max(
+                            1,
+                            Math.min(30, Math.round(Number(e.target.value) || 6)),
+                          ),
+                        )
+                      }
+                      className="w-12 rounded border border-slate-300 bg-transparent px-1 py-1 text-xs dark:border-slate-600"
+                    />
+                  </label>
+                </div>
                 {decErr && (
                   <p className="text-xs text-red-500">
                     {/api|key|auth/i.test(decErr)
@@ -1457,6 +1530,46 @@ export default function SessionWorkspace({
 
               {/* structural actions */}
               <div className="space-y-2 border-t border-slate-200 pt-3 text-xs dark:border-slate-700">
+                {canReorder && (
+                  <div className="flex items-center gap-1 text-slate-500">
+                    <span className="shrink-0">reorder</span>
+                    <button
+                      onClick={() => reorder("top")}
+                      disabled={isFirstSib}
+                      title="to top"
+                      className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-600 dark:hover:bg-slate-800"
+                    >
+                      ⤒
+                    </button>
+                    <button
+                      onClick={() => reorder("up")}
+                      disabled={isFirstSib}
+                      title="move up"
+                      className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-600 dark:hover:bg-slate-800"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => reorder("down")}
+                      disabled={isLastSib}
+                      title="move down"
+                      className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-600 dark:hover:bg-slate-800"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      onClick={() => reorder("bottom")}
+                      disabled={isLastSib}
+                      title="to bottom"
+                      className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-600 dark:hover:bg-slate-800"
+                    >
+                      ⤓
+                    </button>
+                    <span className="ml-auto text-[10px] text-slate-400">
+                      {sibIndex + 1}/{activeSiblings.length}
+                    </span>
+                  </div>
+                )}
                 <label className="flex items-center gap-1 text-slate-500">
                   move to
                   <select
@@ -1465,6 +1578,42 @@ export default function SessionWorkspace({
                     className="min-w-0 flex-1 rounded border border-slate-300 bg-transparent px-1 py-0.5 dark:border-slate-600"
                   >
                     <option value="">— root —</option>
+                    {flattenForMove(roots, selected.id).map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {" ".repeat(o.depth * 2)}
+                        {o.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-slate-500">
+                  before
+                  <select
+                    value=""
+                    onChange={(e) =>
+                      e.target.value && placeRelative(e.target.value, "before")
+                    }
+                    className="min-w-0 flex-1 rounded border border-slate-300 bg-transparent px-1 py-0.5 dark:border-slate-600"
+                  >
+                    <option value="">— pick a node —</option>
+                    {flattenForMove(roots, selected.id).map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {" ".repeat(o.depth * 2)}
+                        {o.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-slate-500">
+                  after
+                  <select
+                    value=""
+                    onChange={(e) =>
+                      e.target.value && placeRelative(e.target.value, "after")
+                    }
+                    className="min-w-0 flex-1 rounded border border-slate-300 bg-transparent px-1 py-0.5 dark:border-slate-600"
+                  >
+                    <option value="">— pick a node —</option>
                     {flattenForMove(roots, selected.id).map((o) => (
                       <option key={o.id} value={o.id}>
                         {" ".repeat(o.depth * 2)}

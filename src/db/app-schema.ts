@@ -23,3 +23,19 @@ export const users = sqliteTable("users", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+// Public, revocable read-only share links to a single session. Lives in the
+// central app.db so an unauthenticated /share/:token request can resolve which
+// user's DB and session to open. The token is an opaque, unguessable secret.
+export const shares = sqliteTable("shares", {
+  token: text("token").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  sessionId: text("session_id").notNull(),
+  label: text("label"),
+  revoked: integer("revoked", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});

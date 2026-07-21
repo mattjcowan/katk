@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { id } from "@/lib/ids";
 import { buildTree, slugify } from "@/lib/tree";
-import type { SessionData } from "@/lib/types";
+import type { SessionBundle, SessionData } from "@/lib/types";
 import { DEFAULT_TIERS, type Tier } from "@/lib/tiers";
 
 export function listTaxonomies(includeArchived = false) {
@@ -43,6 +43,16 @@ export function setTaxonomyArchived(taxonomyId: string, archived: boolean) {
 export function renameTaxonomy(taxonomyId: string, title: string) {
   db.update(schema.taxonomies)
     .set({ title })
+    .where(eq(schema.taxonomies.id, taxonomyId))
+    .run();
+}
+
+export function setTaxonomyDescription(
+  taxonomyId: string,
+  description: string,
+) {
+  db.update(schema.taxonomies)
+    .set({ description })
     .where(eq(schema.taxonomies.id, taxonomyId))
     .run();
 }
@@ -106,6 +116,20 @@ export function createSubject(name: string, email?: string | null): string {
     .values({ id: sid, name, email: email ?? null })
     .run();
   return sid;
+}
+
+export function updateSubject(
+  subjectId: string,
+  patch: { name?: string; email?: string | null },
+) {
+  const set: { name?: string; email?: string | null } = {};
+  if (patch.name !== undefined) set.name = patch.name;
+  if (patch.email !== undefined) set.email = patch.email;
+  if (Object.keys(set).length === 0) return;
+  db.update(schema.subjects)
+    .set(set)
+    .where(eq(schema.subjects.id, subjectId))
+    .run();
 }
 
 export function deleteSubject(subjectId: string) {
@@ -220,6 +244,70 @@ export function getSessionData(sessionId: string): SessionData | null {
     },
     tree,
   };
+}
+
+export function sessionExists(sessionId: string): boolean {
+  return !!db
+    .select({ id: schema.sessions.id })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.id, sessionId))
+    .get();
+}
+
+// A complete, read-only snapshot of a session for the public share viewer:
+// the tree + every node's questions, plus this session's answers/notes/captured
+// messages — preloaded so the viewer needs no authenticated API calls.
+export function getSessionBundle(sessionId: string): SessionBundle | null {
+  const base = getSessionData(sessionId);
+  if (!base) return null;
+  const questions = db
+    .select({
+      id: schema.questions.id,
+      nodeId: schema.questions.nodeId,
+      type: schema.questions.type,
+      prompt: schema.questions.prompt,
+      options: schema.questions.options,
+      answerIndex: schema.questions.answerIndex,
+      answerGuide: schema.questions.answerGuide,
+    })
+    .from(schema.questions)
+    .innerJoin(schema.nodes, eq(schema.questions.nodeId, schema.nodes.id))
+    .where(eq(schema.nodes.taxonomyId, base.taxonomy.id))
+    .orderBy(asc(schema.questions.orderIndex), asc(schema.questions.createdAt))
+    .all();
+  const answers = db
+    .select({
+      questionId: schema.answers.questionId,
+      choice: schema.answers.choice,
+      text: schema.answers.text,
+      score: schema.answers.score,
+      feedback: schema.answers.feedback,
+    })
+    .from(schema.answers)
+    .where(eq(schema.answers.sessionId, sessionId))
+    .all();
+  const notes = db
+    .select({
+      id: schema.notes.id,
+      nodeId: schema.notes.nodeId,
+      body: schema.notes.body,
+    })
+    .from(schema.notes)
+    .where(eq(schema.notes.sessionId, sessionId))
+    .orderBy(asc(schema.notes.createdAt))
+    .all();
+  const messages = db
+    .select({
+      id: schema.messages.id,
+      nodeId: schema.messages.nodeId,
+      role: schema.messages.role,
+      content: schema.messages.content,
+    })
+    .from(schema.messages)
+    .where(eq(schema.messages.sessionId, sessionId))
+    .orderBy(asc(schema.messages.createdAt))
+    .all();
+  return { ...base, questions, answers, notes, messages };
 }
 
 export function upsertRating(
@@ -373,14 +461,16 @@ export function getNodeContext(nodeId: string) {
     .where(eq(schema.taxonomies.id, node.taxonomyId))
     .get();
 
-  const path: string[] = [];
+  // Ancestors from the root down (title + description) so callers can give the
+  // model deeper context than a bare breadcrumb.
+  const ancestors: { title: string; description: string }[] = [];
   const seen = new Set<string>();
   let cur: typeof node | undefined = node;
   while (cur?.parentId && !seen.has(cur.parentId)) {
     seen.add(cur.parentId);
     const parent = getNode(cur.parentId);
     if (!parent) break;
-    path.unshift(parent.title);
+    ancestors.unshift({ title: parent.title, description: parent.description });
     cur = parent;
   }
 
@@ -395,7 +485,8 @@ export function getNodeContext(nodeId: string) {
   return {
     node,
     taxonomyTitle: tax?.title ?? "",
-    path,
+    path: ancestors.map((a) => a.title),
+    ancestors,
     existingChildren: children.map((c) => c.title),
   };
 }
@@ -535,6 +626,96 @@ export function moveNode(
     .set({ parentId: newParentId, orderIndex: nextOrder, updatedAt: new Date() })
     .where(eq(schema.nodes.id, nodeId))
     .run();
+  return { ok: true };
+}
+
+// Ordered sibling ids for a parent (roots when parentId is null).
+function orderedSiblingIds(
+  parentId: string | null,
+  taxonomyId: string,
+): string[] {
+  return db
+    .select({ id: schema.nodes.id })
+    .from(schema.nodes)
+    .where(
+      parentId
+        ? eq(schema.nodes.parentId, parentId)
+        : and(
+            isNull(schema.nodes.parentId),
+            eq(schema.nodes.taxonomyId, taxonomyId),
+          ),
+    )
+    .orderBy(asc(schema.nodes.orderIndex))
+    .all()
+    .map((r) => r.id);
+}
+
+// Rewrite orderIndex to a dense 0..n-1 sequence in the given order.
+function renumberSiblings(ids: string[]) {
+  ids.forEach((nid, i) => {
+    db.update(schema.nodes)
+      .set({ orderIndex: i, updatedAt: new Date() })
+      .where(eq(schema.nodes.id, nid))
+      .run();
+  });
+}
+
+// Move a node within its current sibling group. Position, not identity —
+// history is unaffected (docs/DESIGN.md §3).
+export function reorderNode(
+  nodeId: string,
+  dir: "up" | "down" | "top" | "bottom",
+): { ok: boolean; error?: string } {
+  const node = getNode(nodeId);
+  if (!node) return { ok: false, error: "node not found" };
+  const sibs = orderedSiblingIds(node.parentId, node.taxonomyId);
+  const i = sibs.indexOf(nodeId);
+  if (i < 0) return { ok: false, error: "node not found among siblings" };
+  let j = i;
+  if (dir === "up") j = Math.max(0, i - 1);
+  else if (dir === "down") j = Math.min(sibs.length - 1, i + 1);
+  else if (dir === "top") j = 0;
+  else if (dir === "bottom") j = sibs.length - 1;
+  if (j === i) return { ok: true };
+  sibs.splice(i, 1);
+  sibs.splice(j, 0, nodeId);
+  renumberSiblings(sibs);
+  return { ok: true };
+}
+
+// Place a node immediately before/after a target node, reparenting to the
+// target's parent if needed.
+export function placeNode(
+  nodeId: string,
+  targetId: string,
+  position: "before" | "after",
+): { ok: boolean; error?: string } {
+  const node = getNode(nodeId);
+  if (!node) return { ok: false, error: "node not found" };
+  if (targetId === nodeId)
+    return { ok: false, error: "cannot place a node relative to itself" };
+  const target = getNode(targetId);
+  if (!target || target.taxonomyId !== node.taxonomyId)
+    return { ok: false, error: "invalid target" };
+  const newParentId = target.parentId;
+  if (newParentId) {
+    const desc = new Set(descendantIds(nodeId, node.taxonomyId));
+    if (desc.has(newParentId))
+      return { ok: false, error: "cannot move a node under its own descendant" };
+  }
+  if (node.parentId !== newParentId) {
+    db.update(schema.nodes)
+      .set({ parentId: newParentId, updatedAt: new Date() })
+      .where(eq(schema.nodes.id, nodeId))
+      .run();
+  }
+  const sibs = orderedSiblingIds(newParentId, node.taxonomyId).filter(
+    (sid) => sid !== nodeId,
+  );
+  const ti = sibs.indexOf(targetId);
+  const at = position === "before" ? ti : ti + 1;
+  sibs.splice(at, 0, nodeId);
+  renumberSiblings(sibs);
   return { ok: true };
 }
 

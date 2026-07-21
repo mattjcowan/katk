@@ -37,7 +37,8 @@ competence a person can be more or less proficient at (knowledge areas OR \
 skills/procedures). You decompose one node into the sub-areas worth assessing.
 
 Rules:
-- Propose 5-8 children. Aim for ~6.
+- Propose about the number of children requested in the message (a few more or \
+fewer is fine to keep them clean and non-overlapping).
 - Only split into children that a real person could score DIFFERENTLY on. If two \
 proposed children would always get the same skill level, merge them.
 - Children must be siblings at a comparable level of granularity.
@@ -50,6 +51,7 @@ export async function decomposeNode(
   input: {
     taxonomyTitle: string;
     path: string[];
+    ancestors?: { title: string; description: string }[];
     nodeTitle: string;
     nodeDescription: string;
     existingChildren: string[];
@@ -57,10 +59,16 @@ export async function decomposeNode(
     steer?: string;
   },
 ): Promise<DecomposeResult> {
-  const n = input.count ?? 6;
+  const n = Math.max(1, Math.min(30, Math.round(input.count ?? 6)));
   const where = [input.taxonomyTitle, ...input.path].filter(Boolean).join(" › ");
+  const ancestorLines = (input.ancestors ?? [])
+    .filter((a) => a.description)
+    .map((a) => `- ${a.title}: ${a.description}`)
+    .join("\n");
   const user = `Taxonomy: ${input.taxonomyTitle}
-Location: ${where || "(root)"}
+Location: ${where || "(root)"}${
+    ancestorLines ? `\nAncestor context (root → parent):\n${ancestorLines}` : ""
+  }
 Node to break down: "${input.nodeTitle}"${
     input.nodeDescription ? `\nNode description: ${input.nodeDescription}` : ""
   }
@@ -73,7 +81,7 @@ Propose about ${n} sub-areas of "${input.nodeTitle}" worth assessing separately.
   try {
     const response = await ctx.client.messages.create({
       model: ctx.model,
-      max_tokens: 2000,
+      max_tokens: Math.min(8000, 1200 + n * 220),
       system: SYSTEM,
       messages: [{ role: "user", content: user }],
       output_config: { format: { type: "json_schema", schema: SCHEMA } },

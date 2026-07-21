@@ -19,6 +19,14 @@ create table if not exists users (
   model text,
   created_at integer not null,
   updated_at integer not null
+);
+create table if not exists shares (
+  token text primary key not null,
+  user_id text not null,
+  session_id text not null,
+  label text,
+  revoked integer not null default 0,
+  created_at integer not null
 );`;
 
 const g = globalThis as unknown as {
