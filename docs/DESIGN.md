@@ -402,7 +402,7 @@ container, one persistent volume, one instance, TLS in front.**
 
 - **Image.** A multi-stage `Dockerfile` emits Next.js standalone output; the
   `better-sqlite3` native addon rides along (it's a `serverExternalPackages` entry).
-  Runs non-root. Published to `ghcr.io/mjczone/katk` by CI on push/tag, multi-arch
+  Runs non-root. Published to `ghcr.io/mattjcowan/katk` by CI on push/tag, multi-arch
   (amd64 + arm64).
 - **Compose.** `docker-compose.yml` mounts a named volume at `/data`
   (`KATK_DATA_DIR`), declares every env var with a default, and binds to localhost

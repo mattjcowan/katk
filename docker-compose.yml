@@ -2,7 +2,7 @@ services:
   katk:
     # Run the published image with `docker compose pull && docker compose up -d`,
     # or build from source with `docker compose up -d --build`.
-    image: ghcr.io/mjczone/katk:latest
+    image: ghcr.io/mattjcowan/katk:latest
     build: .
     restart: unless-stopped
     init: true # tini reaps zombies and forwards SIGTERM for graceful shutdown

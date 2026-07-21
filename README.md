@@ -52,7 +52,7 @@ HTTPS reverse proxy** — do not scale it horizontally.
 Pull the published image (built by CI on every push/tag, amd64 + arm64):
 
 ```bash
-docker pull ghcr.io/mjczone/katk:latest
+docker pull ghcr.io/mattjcowan/katk:latest
 ```
 
 Or use [docker-compose.yml](docker-compose.yml) — it mounts a `katk-data` volume at
@@ -145,7 +145,7 @@ new nodes are added and ids backfilled into the YAML. See docs/DESIGN.md §7.
 
 ## Releases
 
-CI publishes `ghcr.io/mjczone/katk:latest` on every push to `main`. To cut a
+CI publishes `ghcr.io/mattjcowan/katk:latest` on every push to `main`. To cut a
 versioned release, push a tag:
 
 ```bash
