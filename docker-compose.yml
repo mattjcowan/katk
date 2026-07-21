@@ -1,0 +1,44 @@
+services:
+  katk:
+    # Run the published image with `docker compose pull && docker compose up -d`,
+    # or build from source with `docker compose up -d --build`.
+    image: ghcr.io/mjczone/katk:latest
+    build: .
+    restart: unless-stopped
+    init: true # tini reaps zombies and forwards SIGTERM for graceful shutdown
+    # Each value reads from a sibling .env file or the shell if set, otherwise the
+    # default shown here is used. Override in production — especially the secrets.
+    environment:
+      # Admin bootstrap — seeds the first admin on the initial run only.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme} # CHANGE THIS
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      # Secrets — pin these in production. Empty => the app generates and persists
+      # its own into /data (fine only as long as the volume is never lost).
+      KATK_SECRET: ${KATK_SECRET:-}
+      KATK_ENCRYPTION_KEY: ${KATK_ENCRYPTION_KEY:-}
+      # Shared Anthropic key (optional) + cost-controlled default model used on it.
+      # Users on their own key pick their own model in Settings.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      KATK_MODEL: ${KATK_MODEL:-claude-haiku-4-5}
+      # Data (app.db + per-user DBs) always lives on the mounted volume.
+      KATK_DATA_DIR: /data
+    volumes:
+      - katk-data:/data
+    ports:
+      # Bind to localhost only — terminate TLS in a reverse proxy in front of this.
+      # For direct exposure (dev/LAN), change to "3000:3000".
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  katk-data:

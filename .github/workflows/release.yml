@@ -1,0 +1,38 @@
+name: Release
+
+# Cut a release by pushing a version tag:  git tag v1.0.0 && git push origin v1.0.0
+# That also triggers docker.yml, which publishes the matching versioned image.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish a release for (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write # create GitHub Releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for changelog notes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish GitHub Release with auto-generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac # e.g. v1.0.0-rc.1 => pre-release
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — nothing to do."
+          else
+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG" $PRE
+          fi

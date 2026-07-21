@@ -1,0 +1,131 @@
+# General Software Engineering taxonomy (seed).
+# Authored by nesting; `id` is omitted and backfilled on first import so future
+# imports upsert by stable id (see docs/DESIGN.md §7.2). Top level is grouped by
+# FACET so each radar wheel stays coherent (docs/DESIGN.md §5).
+id: tax_swe
+title: General Software Engineering
+description: Breadth and depth across the craft of building software.
+
+tree:
+  - slug: technical-foundations
+    title: Technical Foundations
+    description: The durable fundamentals under any stack.
+    children:
+      - slug: languages
+        title: Languages
+        description: Language experience, from daily use down to design.
+        children:
+          - slug: favorites-experience
+            title: Favorite Languages & Experience
+            id: n_0d04d20a5281
+          - slug: paradigms
+            title: Paradigms (OO / functional / concurrent)
+            id: n_b3748c2c6793
+          - slug: type-systems
+            title: Type Systems
+            id: n_4e7b1efdcd8b
+          - slug: ast-language-design
+            title: AST & Language Design
+            id: n_97357f8fad01
+        id: n_eacdf84f0e0d
+      - slug: algorithms-ml
+        title: Algorithms & Machine Learning
+        children:
+          - slug: data-structures
+            title: Data Structures
+            id: n_bf4997474822
+          - slug: complexity
+            title: Complexity & Analysis
+            id: n_32c0bf3a751e
+          - slug: ml-foundations
+            title: ML Foundations
+            id: n_9804673cadc0
+        id: n_277a15ea81c3
+      - slug: design-patterns
+        title: Design Patterns
+        id: n_bbaf9359b26e
+      - slug: databases
+        title: Databases
+        children:
+          - slug: relational-modeling
+            title: Relational Modeling
+            id: n_62e3b760d66b
+          - slug: query-optimization
+            title: Query Optimization
+            id: n_c4c55a5bdbfd
+          - slug: distributed-data
+            title: Distributed Data
+            id: n_cad6a1727af4
+          - slug: nosql
+            title: NoSQL & Alternative Stores
+            id: n_221ded64ebd3
+        id: n_0bd5edf1f640
+      - slug: networking
+        title: Networking
+        id: n_443a417bacac
+    id: n_2f7eb729fb70
+
+  - slug: building-delivery
+    title: Building & Delivery
+    description: Shipping working software to users.
+    children:
+      - slug: frontend
+        title: Frontend Development
+        id: n_b7b091ca70fc
+      - slug: backend
+        title: Backend Development
+        id: n_3b6b82ca3daf
+      - slug: full-stack
+        title: Full-Stack Development
+        id: n_ef4f71cda8b1
+      - slug: mobile
+        title: Mobile Development
+        id: n_567447a10fcd
+      - slug: ai-engineering
+        title: AI Engineering
+        description: >-
+          Also the root of a standalone AI Engineering taxonomy — the same node,
+          reused at more depth there (docs/DESIGN.md §2).
+        children:
+          - slug: prompting
+            title: Prompting & Context Design
+            id: n_bb8c195bb32c
+          - slug: rag
+            title: Retrieval-Augmented Generation
+            id: n_76cd40dba3b9
+          - slug: agents
+            title: Agents & Tool Use
+            id: n_14c2c325e76b
+          - slug: evals
+            title: Evaluation & Guardrails
+            id: n_bdb17316bae5
+        id: n_1a9a4f467812
+    id: n_e3ef5e9ef35b
+
+  - slug: architecture-integration
+    title: Architecture & Integration
+    description: Designing systems and connecting them to the enterprise.
+    children:
+      - slug: solution-architecture
+        title: Solution Architecture
+        id: n_f88be7e3f150
+      - slug: enterprise-integration
+        title: Enterprise Apps & Integration
+        id: n_04063a169d51
+    id: n_15bd1c21bf37
+
+  - slug: ways-of-working
+    title: Ways of Working
+    description: The human side of the craft.
+    children:
+      - slug: team-dynamics
+        title: Team Dynamics
+        description: Communication, management, git-workflow collaboration.
+        id: n_4c8f091d9651
+      - slug: customer-interaction
+        title: Customer Interaction
+        id: n_fdf1e3fd4fd9
+      - slug: consulting
+        title: Consulting
+        id: n_c764ba61118c
+    id: n_c816b868f1e8
