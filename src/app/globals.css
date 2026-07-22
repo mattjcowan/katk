@@ -7,11 +7,15 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Make native controls (select option popups, scrollbars, etc.) follow the
+     app's class-based theme, so dropdown menus aren't light-on-white in dark. */
+  color-scheme: light;
 }
 
 .dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -25,4 +29,16 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Native <select> option popups don't reliably follow the class-based theme or
+   inherit the trigger's text color, which left dark-mode options as low-contrast
+   light-grey. Style them explicitly for readable contrast in both themes. */
+option {
+  background-color: #ffffff;
+  color: #171717;
+}
+.dark option {
+  background-color: #1e293b; /* slate-800 */
+  color: #f1f5f9; /* slate-100 */
 }

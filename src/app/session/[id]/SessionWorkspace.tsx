@@ -110,6 +110,25 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
+function PencilIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
 export default function SessionWorkspace({
   initial,
   sessionId,
@@ -157,7 +176,8 @@ export default function SessionWorkspace({
   const [assessing, setAssessing] = useState(false);
   const [assessResult, setAssessResult] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
-  const [catValue, setCatValue] = useState(initial.session.mode);
+  const [editingCat, setEditingCat] = useState(false);
+  const [catDraft, setCatDraft] = useState("");
 
   const [capturing, setCapturing] = useState(false);
   const [captureText, setCaptureText] = useState("");
@@ -183,6 +203,7 @@ export default function SessionWorkspace({
   );
   const selected = selectedId ? findNode(roots, selectedId) : null;
   const crumbs = focusId ? (pathTo(roots, focusId) ?? []) : [];
+  const upFocusId = crumbs.length >= 2 ? crumbs[crumbs.length - 2].id : null;
   const allParentIds = collectParentIds(roots);
   const allCollapsed = allParentIds.every((id) => collapsed.has(id));
 
@@ -368,14 +389,17 @@ export default function SessionWorkspace({
     });
   }
 
-  async function saveCategory() {
-    if (catValue === data.session.mode) return;
+  async function setCategory(value: string) {
+    const v = value.trim();
+    if (v === data.session.mode) return;
     await fetch(`/api/sessions/${sessionId}`, {
       method: "PATCH",
       headers: H,
-      body: JSON.stringify({ mode: catValue }),
+      body: JSON.stringify({ mode: v }),
     });
-    setData((d) => ({ ...d, session: { ...d.session, mode: catValue } }));
+    setData((d) => ({ ...d, session: { ...d.session, mode: v } }));
+    if (v && !categories.includes(v))
+      setCategories((c) => [...c, v].sort((a, b) => a.localeCompare(b)));
   }
 
   async function capture() {
@@ -842,6 +866,11 @@ export default function SessionWorkspace({
                     <div className="flex items-start gap-2">
                       <span className="text-xs text-slate-400">{i + 1}.</span>
                       <div className="flex-1 text-sm">{q.prompt}</div>
+                      {type === "mcq" && ans?.choice == null && (
+                        <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                          not answered
+                        </span>
+                      )}
                       <button
                         onClick={() => deleteQuestionFn(q.id)}
                         className="text-xs text-slate-300 hover:text-red-600"
@@ -860,10 +889,10 @@ export default function SessionWorkspace({
                             "border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800";
                           if (showAnswers && correct)
                             cls =
-                              "border-green-300 bg-green-100 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300";
-                          else if (showAnswers && chosen && !correct)
+                              "border-green-400 bg-green-50 dark:border-green-800 dark:bg-green-950/40";
+                          else if (showAnswers && chosen)
                             cls =
-                              "border-red-300 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300";
+                              "border-red-400 bg-red-50 dark:border-red-800 dark:bg-red-950/40";
                           else if (chosen)
                             cls =
                               "border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950";
@@ -878,14 +907,21 @@ export default function SessionWorkspace({
                                 </span>
                                 <span className="flex-1">{opt}</span>
                                 {showAnswers && correct && (
-                                  <span className="text-xs">✓</span>
+                                  <span className="shrink-0 rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                    correct answer
+                                  </span>
                                 )}
-                                {showAnswers && chosen && !correct && (
-                                  <span className="text-xs">✗ chosen</span>
-                                )}
-                                {!showAnswers && chosen && (
-                                  <span className="text-xs text-indigo-500">
-                                    ●
+                                {chosen && (
+                                  <span
+                                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-white ${
+                                      !showAnswers
+                                        ? "bg-indigo-600"
+                                        : correct
+                                          ? "bg-green-700"
+                                          : "bg-red-600"
+                                    }`}
+                                  >
+                                    selected
                                   </span>
                                 )}
                               </button>
@@ -941,23 +977,71 @@ export default function SessionWorkspace({
         </Link>
         <span className="font-semibold">{data.subject.name}</span>
         <span className="text-slate-400">·</span>
-        <span>{data.taxonomy.title}</span>
-        <label className="ml-auto flex items-center gap-1 text-xs text-slate-400">
+        <button
+          onClick={() => {
+            setFocusId(null);
+            setCenterTab("radar");
+          }}
+          title="Go to the top-level radar overview"
+          className="rounded px-1 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+        >
+          {data.taxonomy.title}
+        </button>
+        <div className="ml-auto flex items-center gap-1 text-xs text-slate-400">
           category
-          <input
-            list="katk-cats"
-            value={catValue}
-            onChange={(e) => setCatValue(e.target.value)}
-            onBlur={saveCategory}
-            placeholder="e.g. Interview"
-            className="w-32 rounded border border-slate-300 bg-transparent px-2 py-0.5 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200"
-          />
-          <datalist id="katk-cats">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-        </label>
+          {editingCat ? (
+            <input
+              value={catDraft}
+              onChange={(e) => setCatDraft(e.target.value)}
+              onBlur={() => {
+                setCategory(catDraft);
+                setEditingCat(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setCategory(catDraft);
+                  setEditingCat(false);
+                } else if (e.key === "Escape") {
+                  setEditingCat(false);
+                }
+              }}
+              autoFocus
+              placeholder="e.g. Interview"
+              className="w-32 rounded border border-slate-300 bg-transparent px-2 py-0.5 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200"
+            />
+          ) : (
+            <>
+              <select
+                value={data.session.mode}
+                onChange={(e) => setCategory(e.target.value)}
+                className="max-w-[10rem] rounded border border-slate-300 bg-transparent px-1 py-0.5 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200"
+              >
+                <option value="">— none —</option>
+                {[
+                  ...new Set(
+                    [...categories, data.session.mode].filter(Boolean),
+                  ),
+                ]
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+              </select>
+              <button
+                onClick={() => {
+                  setCatDraft(data.session.mode);
+                  setEditingCat(true);
+                }}
+                title="Type a new category"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <PencilIcon />
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <PanelGroup
@@ -1044,11 +1128,21 @@ export default function SessionWorkspace({
             {centerTab === "radar" ? (
               <>
                 <div className="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-sm text-slate-500">
+                  {focusId && (
+                    <button
+                      onClick={() => setFocusId(upFocusId)}
+                      title="Up one level"
+                      className="mr-1 shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                    >
+                      ↑ up
+                    </button>
+                  )}
                   <button
                     onClick={() => setFocusId(null)}
-                    className="shrink-0 hover:text-slate-800 dark:hover:text-slate-200"
+                    title="Back to the top-level overview"
+                    className="shrink-0 rounded px-1 font-medium hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                   >
-                    {data.taxonomy.title}
+                    ⌂ {data.taxonomy.title}
                   </button>
                   {crumbs.length > 0 &&
                     (crumbs.length <= 2 ? (
@@ -1060,7 +1154,7 @@ export default function SessionWorkspace({
                           <span className="shrink-0">›</span>
                           <button
                             onClick={() => setFocusId(c.id)}
-                            className="max-w-[12rem] truncate hover:text-slate-800 dark:hover:text-slate-200"
+                            className="max-w-[12rem] truncate rounded px-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                           >
                             {c.title}
                           </button>
@@ -1105,7 +1199,7 @@ export default function SessionWorkspace({
                           onClick={() =>
                             setFocusId(crumbs[crumbs.length - 1].id)
                           }
-                          className="max-w-[16rem] truncate hover:text-slate-800 dark:hover:text-slate-200"
+                          className="max-w-[16rem] truncate rounded px-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           {crumbs[crumbs.length - 1].title}
                         </button>
@@ -1143,7 +1237,7 @@ export default function SessionWorkspace({
                     />
                     expert assessment
                   </span>
-                  <span>· click a spoke to drill in</span>
+                  <span>· click a spoke to drill in · a crumb to zoom out</span>
                 </div>
               </>
             ) : centerTab === "mcq" ? (

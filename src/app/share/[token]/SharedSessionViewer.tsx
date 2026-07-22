@@ -125,6 +125,7 @@ export default function SharedSessionViewer({
   );
   const selected = selectedId ? findNode(roots, selectedId) : null;
   const crumbs = focusId ? (pathTo(roots, focusId) ?? []) : [];
+  const upFocusId = crumbs.length >= 2 ? crumbs[crumbs.length - 2].id : null;
 
   const radarData = spokes.map((n) => ({
     id: n.id,
@@ -295,6 +296,11 @@ export default function SharedSessionViewer({
                     <div className="flex items-start gap-2">
                       <span className="text-xs text-slate-400">{i + 1}.</span>
                       <div className="flex-1 text-sm">{q.prompt}</div>
+                      {type === "mcq" && ans?.choice == null && (
+                        <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                          not answered
+                        </span>
+                      )}
                     </div>
 
                     {type === "mcq" && q.options && (
@@ -302,14 +308,13 @@ export default function SharedSessionViewer({
                         {q.options.map((opt, oi) => {
                           const chosen = ans?.choice === oi;
                           const correct = q.answerIndex === oi;
-                          let cls =
-                            "border-slate-200 dark:border-slate-700";
+                          let cls = "border-slate-200 dark:border-slate-700";
                           if (showAnswers && correct)
                             cls =
-                              "border-green-300 bg-green-100 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300";
-                          else if (showAnswers && chosen && !correct)
+                              "border-green-400 bg-green-50 dark:border-green-800 dark:bg-green-950/40";
+                          else if (showAnswers && chosen)
                             cls =
-                              "border-red-300 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300";
+                              "border-red-400 bg-red-50 dark:border-red-800 dark:bg-red-950/40";
                           else if (chosen)
                             cls =
                               "border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950";
@@ -323,13 +328,22 @@ export default function SharedSessionViewer({
                               </span>
                               <span className="flex-1">{opt}</span>
                               {showAnswers && correct && (
-                                <span className="text-xs">✓</span>
+                                <span className="shrink-0 rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                  correct answer
+                                </span>
                               )}
-                              {showAnswers && chosen && !correct && (
-                                <span className="text-xs">✗ chosen</span>
-                              )}
-                              {!showAnswers && chosen && (
-                                <span className="text-xs text-indigo-500">●</span>
+                              {chosen && (
+                                <span
+                                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-white ${
+                                    !showAnswers
+                                      ? "bg-indigo-600"
+                                      : correct
+                                        ? "bg-green-700"
+                                        : "bg-red-600"
+                                  }`}
+                                >
+                                  their answer
+                                </span>
                               )}
                             </li>
                           );
@@ -387,7 +401,16 @@ export default function SharedSessionViewer({
         <span className="text-slate-400">·</span>
         <span className="font-medium">{bundle.subject.name}</span>
         <span className="text-slate-400">·</span>
-        <span>{bundle.taxonomy.title}</span>
+        <button
+          onClick={() => {
+            setFocusId(null);
+            setCenterTab("radar");
+          }}
+          title="Go to the top-level radar overview"
+          className="rounded px-1 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+        >
+          {bundle.taxonomy.title}
+        </button>
         {bundle.session.mode && (
           <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
             {bundle.session.mode}
@@ -448,11 +471,21 @@ export default function SharedSessionViewer({
               {centerTab === "radar" ? (
                 <>
                   <div className="mb-2 flex items-center gap-1 overflow-hidden whitespace-nowrap text-sm text-slate-500">
+                    {focusId && (
+                      <button
+                        onClick={() => setFocusId(upFocusId)}
+                        title="Up one level"
+                        className="mr-1 shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                      >
+                        ↑ up
+                      </button>
+                    )}
                     <button
                       onClick={() => setFocusId(null)}
-                      className="shrink-0 hover:text-slate-800 dark:hover:text-slate-200"
+                      title="Back to the top-level overview"
+                      className="shrink-0 rounded px-1 font-medium hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     >
-                      {bundle.taxonomy.title}
+                      ⌂ {bundle.taxonomy.title}
                     </button>
                     {crumbs.length > 0 &&
                       (crumbs.length <= 2 ? (
@@ -464,7 +497,7 @@ export default function SharedSessionViewer({
                             <span className="shrink-0">›</span>
                             <button
                               onClick={() => setFocusId(c.id)}
-                              className="max-w-[12rem] truncate hover:text-slate-800 dark:hover:text-slate-200"
+                              className="max-w-[12rem] truncate rounded px-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                             >
                               {c.title}
                             </button>
@@ -507,7 +540,7 @@ export default function SharedSessionViewer({
                           <span className="shrink-0">›</span>
                           <button
                             onClick={() => setFocusId(crumbs[crumbs.length - 1].id)}
-                            className="max-w-[16rem] truncate hover:text-slate-800 dark:hover:text-slate-200"
+                            className="max-w-[16rem] truncate rounded px-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                           >
                             {crumbs[crumbs.length - 1].title}
                           </button>
@@ -544,7 +577,7 @@ export default function SharedSessionViewer({
                       />
                       expert assessment
                     </span>
-                    <span>· click a spoke to drill in</span>
+                    <span>· click a spoke to drill in · a crumb to zoom out</span>
                   </div>
                 </>
               ) : centerTab === "mcq" ? (
